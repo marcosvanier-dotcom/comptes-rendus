@@ -6851,6 +6851,8 @@ function runAIExtraction() { _aiRunFileExtraction(); }
       <div style="font-size:15px;font-weight:700;color:#fff;">🎫 Tickets — incidents, non-conformités, demandes</div>
       <div style="display:flex;gap:8px;">
         <button onclick="_tkShowNewForm()" style="background:rgba(255,255,255,0.18);border:none;border-radius:7px;padding:6px 12px;cursor:pointer;color:#fff;font-size:12px;font-weight:700;">➕ Nouveau ticket</button>
+        <button onclick="document.getElementById('tk-import-file').click()" title="Importer des tickets depuis un fichier JSON" style="background:rgba(255,255,255,0.18);border:none;border-radius:7px;padding:6px 12px;cursor:pointer;color:#fff;font-size:12px;font-weight:700;">⬆ Importer ticket JSON</button>
+        <input type="file" id="tk-import-file" accept=".json" style="display:none;" onchange="_tkImportJSON(this)" />
         <button onclick="_tkExportJSON()" title="Exporter tous les tickets en fichier JSON" style="background:rgba(255,255,255,0.18);border:none;border-radius:7px;padding:6px 12px;cursor:pointer;color:#fff;font-size:12px;font-weight:700;">⬇ Exporter ticket JSON</button>
         <button onclick="closeTicketModal()" style="background:rgba(255,255,255,0.15);border:none;border-radius:7px;padding:5px 9px;cursor:pointer;color:#fff;font-size:16px;">✕</button>
       </div>
@@ -7026,6 +7028,38 @@ function _tkExportJSON() {
   const dateStr = new Date().toISOString().slice(0,10);
   dlFile(JSON.stringify(payload, null, 2), `tickets_${dateStr}.json`, 'application/json;charset=utf-8');
   showToast(`✅ ${tickets.length} ticket${tickets.length!==1?'s':''} exporté${tickets.length!==1?'s':''}.`);
+}
+function _tkImportJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let imported;
+    try {
+      const data = JSON.parse(e.target.result);
+      imported = Array.isArray(data) ? data : data.tickets;
+      if (!Array.isArray(imported)) throw new Error();
+    } catch(err) {
+      showToast('❌ Fichier invalide ou corrompu.');
+      input.value = '';
+      return;
+    }
+    const existing = _tkLoad();
+    const existingIds = new Set(existing.map(t => t.id));
+    const toAdd = imported.filter(t => t && t.id && !existingIds.has(t.id));
+    const skipped = imported.length - toAdd.length;
+    if (!toAdd.length) {
+      showToast(skipped ? '⚠️ Tous les tickets importés existent déjà.' : '⚠️ Aucun ticket valide dans ce fichier.');
+      input.value = '';
+      return;
+    }
+    const merged = existing.concat(toAdd);
+    if (!_tkSave(merged)) { input.value = ''; return; }
+    _tkRenderList();
+    showToast(`✅ ${toAdd.length} ticket${toAdd.length!==1?'s':''} importé${toAdd.length!==1?'s':''}${skipped?` (${skipped} déjà présent${skipped!==1?'s':''}, ignoré${skipped!==1?'s':''})`:''}.`);
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 function _tkNextNumber(tickets) {
   const year = new Date().getFullYear();
