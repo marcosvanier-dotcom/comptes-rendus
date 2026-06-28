@@ -6273,6 +6273,7 @@ initApp();
       <div>
         <div style="font-size:15px;font-weight:700;color:#fff;">🤖 Import IA — E-mail</div>
         <div style="font-size:11px;color:#c5cae9;margin-top:2px;" id="ai-header-sub">Chargez un fichier email ou collez le texte</div>
+        <div id="ai-license-owner" style="font-size:10px;color:#ffe082;margin-top:2px;display:none;"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button onclick="_aiOpenConfig()" title="Configurer la clé API du fournisseur d'IA" style="background:rgba(255,255,255,0.15);border:none;border-radius:7px;padding:5px 9px;cursor:pointer;color:#fff;font-size:14px;">⚙️ Configurer</button>
@@ -6288,7 +6289,7 @@ initApp();
         L'import d'e-mail par IA est une fonctionnalité Pro. Entrez votre clé de licence pour l'activer sur ce navigateur.
       </div>
       <div style="display:flex;gap:8px;justify-content:center;max-width:380px;margin:0 auto;">
-        <input type="text" id="ai-license-input" placeholder="XXXX-XXXX-XXXX" autocomplete="off"
+        <input type="text" id="ai-license-input" placeholder="CLIENT-XXXX" autocomplete="off"
           style="flex:1;padding:9px 12px;font-size:13px;border:1px solid #c5cae9;border-radius:7px;font-family:monospace;text-align:center;text-transform:uppercase;letter-spacing:1px;" />
         <button onclick="_licActivate()" style="padding:9px 18px;font-size:12px;font-weight:700;background:#1a237e;color:#fff;border:none;border-radius:7px;cursor:pointer;">Activer</button>
       </div>
@@ -6318,6 +6319,10 @@ initApp();
       <div id="ai-provider-key-status" style="font-size:11px;margin-top:6px;color:#2e7d32;display:none;"></div>
       <div style="font-size:10px;color:#999;margin-top:6px;">
         Une clé API est obligatoire pour l'analyse — sans backend, cette version locale n'a pas de clé par défaut.
+      </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;">
+        <span id="ai-license-owner-config" style="font-size:11px;color:#1a237e;font-weight:600;"></span>
+        <button onclick="_licDeactivate()" style="font-size:11px;background:#ffebee;color:#c62828;border:1px solid #ffcdd2;border-radius:6px;padding:4px 10px;cursor:pointer;">🗑 Désactiver la licence</button>
       </div>
     </div>
 
@@ -6448,15 +6453,29 @@ function _licChecksum(s) {
   const h = _licFnv1a(s + _LIC_SECRET);
   return h.toString(36).toUpperCase().padStart(8, '0').slice(-4);
 }
+// Format de clé : <CLIENT>-<CHECKSUM4>. <CLIENT> est un identifiant lisible
+// (nom du client/site) choisi à la génération — il reste visible dans l'app
+// une fois la licence activée, pour la traçabilité en cas de partage non autorisé.
+function _licParseKey(key) {
+  const k = String(key || '').trim().toUpperCase();
+  const idx = k.lastIndexOf('-');
+  if (idx < 1) return null;
+  const customer = k.slice(0, idx);
+  const checksum = k.slice(idx + 1);
+  if (checksum.length !== 4 || !/^[A-Z0-9]+$/.test(customer)) return null;
+  return { customer, checksum };
+}
 function _licIsValidKey(key) {
-  const parts = String(key || '').trim().toUpperCase().split('-');
-  if (parts.length !== 3) return false;
-  const [a, b, c] = parts;
-  if (a.length !== 4 || b.length !== 4 || c.length !== 4) return false;
-  return c === _licChecksum(a + b);
+  const parsed = _licParseKey(key);
+  if (!parsed) return false;
+  return parsed.checksum === _licChecksum(parsed.customer);
 }
 function _licIsActive() {
   return _licIsValidKey(localStorage.getItem(_LIC_STORAGE_KEY) || '');
+}
+function _licGetCustomer() {
+  const parsed = _licParseKey(localStorage.getItem(_LIC_STORAGE_KEY) || '');
+  return parsed ? parsed.customer : '';
 }
 function _licActivate() {
   const input = document.getElementById('ai-license-input');
@@ -6472,11 +6491,22 @@ function _licActivate() {
   st.textContent = '✅ Licence activée !';
   setTimeout(_aiApplyLicenseGate, 400);
 }
+function _licDeactivate() {
+  localStorage.removeItem(_LIC_STORAGE_KEY);
+  _aiApplyLicenseGate();
+}
 function _aiApplyLicenseGate() {
   const active = _licIsActive();
   document.getElementById('ai-license-lock').style.display = active ? 'none' : 'block';
   document.getElementById('ai-body-content').style.display = active ? '' : 'none';
-  if (active) _aiShowSourceUI();
+  const ownerEl = document.getElementById('ai-license-owner');
+  if (active) {
+    ownerEl.style.display = 'block';
+    ownerEl.textContent = `🔑 Licence : ${_licGetCustomer()}`;
+    _aiShowSourceUI();
+  } else {
+    ownerEl.style.display = 'none';
+  }
 }
 
 // ─── OPEN / CLOSE ───────────────────────────────────────────────
@@ -6513,6 +6543,8 @@ function _aiOpenConfig() {
   const savedProvider = localStorage.getItem(_AI_PROVIDER_PREF_KEY) || 'anthropic';
   document.getElementById('ai-provider-select').value = savedProvider;
   _aiOnProviderChange();
+
+  document.getElementById('ai-license-owner-config').textContent = _licIsActive() ? `🔑 Licence : ${_licGetCustomer()}` : '';
 }
 
 // ─── FOURNISSEUR D'IA (clé individuelle par utilisateur, uniquement dans le navigateur) ──
