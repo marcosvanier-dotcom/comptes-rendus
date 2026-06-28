@@ -3381,15 +3381,6 @@ function sortSection(si, key) {
   autosave();
 }
 
-// ── DARK MODE ─────────────────────────────────────────────────
-let darkMode = false;
-function toggleDarkMode() {
-  darkMode = !darkMode;
-  document.body.classList.toggle('dark', darkMode);
-  const btn = document.getElementById('dark-btn');
-  if (btn) btn.textContent = darkMode ? '☀️' : '🌙';
-}
-
 // ── COMPACT VIEW ──────────────────────────────────────────────
 let compactView = false;
 function toggleCompactView() {
@@ -6311,7 +6302,7 @@ initApp();
       </div>
       <div id="ai-provider-key-status" style="font-size:11px;margin-top:6px;color:#2e7d32;display:none;"></div>
       <div style="font-size:10px;color:#999;margin-top:6px;">
-        Sans clé personnelle, l'analyse utilise (si disponible) la clé Anthropic par défaut configurée sur le serveur.
+        Une clé API est obligatoire pour l'analyse — sans backend, cette version locale n'a pas de clé par défaut.
       </div>
     </div>
 
@@ -6645,10 +6636,10 @@ function _renderAIStep2() {
   const affaires = [...new Set(_aiExtracted.map(i=>i.affaire).filter(Boolean))];
   chips.innerHTML = [
     `<span style="font-size:11px;font-weight:700;color:#1a237e;background:#e8eaf6;border-radius:10px;padding:3px 10px;">${total} action${total!==1?'s':''} détectée${total!==1?'s':''}</span>`,
-    sites.length    ? `<span style="font-size:11px;background:#e0f7fa;color:#00695c;border-radius:10px;padding:3px 10px;">📍 ${sites.join(', ')}</span>` : '',
-    resps.length    ? `<span style="font-size:11px;background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:3px 10px;">👤 ${resps.join(', ')}</span>` : '',
+    sites.length    ? `<span style="font-size:11px;background:#e0f7fa;color:#00695c;border-radius:10px;padding:3px 10px;">📍 ${escHtml(sites.join(', '))}</span>` : '',
+    resps.length    ? `<span style="font-size:11px;background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:3px 10px;">👤 ${escHtml(resps.join(', '))}</span>` : '',
     dates           ? `<span style="font-size:11px;background:#fff3e0;color:#e65100;border-radius:10px;padding:3px 10px;">📅 ${dates} date${dates!==1?'s':''}</span>` : '',
-    affaires.length ? `<span style="font-size:11px;background:#fce4ec;color:#880e4f;border-radius:10px;padding:3px 10px;">🔢 ${affaires.join(', ')}</span>` : '',
+    affaires.length ? `<span style="font-size:11px;background:#fce4ec;color:#880e4f;border-radius:10px;padding:3px 10px;">🔢 ${escHtml(affaires.join(', '))}</span>` : '',
   ].join('');
 
   const list = document.getElementById('ai-items-list');
@@ -6662,10 +6653,10 @@ function _renderAIStep2() {
   const prioOpts   = [['non-prioritaire','— Non prioritaire'],['prioritaire','⭐ Prioritaire'],['attente-validation','🔒 Attente de validation']];
 
   _aiExtracted.forEach((item,idx) => {
-    const secOpts  = state.sections.map(s=>`<option value="${s.id}" ${s.id===item.section_id?'selected':''}>${s.emoji} ${s.label}</option>`).join('');
+    const secOpts  = state.sections.map(s=>`<option value="${escHtml(s.id)}" ${s.id===item.section_id?'selected':''}>${escHtml(s.emoji||'')} ${escHtml(s.label||'')}</option>`).join('');
     const stOpts   = statusOpts.map(([v,l])=>`<option value="${v}" ${v===item.status?'selected':''}>${l}</option>`).join('');
     const prOpts   = prioOpts.map(([v,l])=>`<option value="${v}" ${v===item.priority?'selected':''}>${l}</option>`).join('');
-    const siteOpts = ['', ..._AI_EDF_SITES].map(s=>`<option value="${s}" ${s===item.site?'selected':''}>${s||'📍 Site...'}</option>`).join('');
+    const siteOpts = ['', ..._AI_EDF_SITES].map(s=>`<option value="${escHtml(s)}" ${s===item.site?'selected':''}>${s?escHtml(s):'📍 Site...'}</option>`).join('');
     const card = document.createElement('div');
     card.className = 'ai-item-card' + (item._checked?'':' unchecked');
     card.id = `ai-card-${idx}`;
