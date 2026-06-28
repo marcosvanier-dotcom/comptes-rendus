@@ -6594,7 +6594,6 @@ async function _aiCallProviderDirect(provider, apiKey, prompt) {
 }
 
 async function _aiRunExtraction(emailText) {
-  document.getElementById('ai-panel-file').classList.remove('active');
   document.getElementById('ai-loading').style.display = 'flex';
   document.getElementById('ai-error').style.display = 'none';
   if (document.getElementById('ai-run-btn')) document.getElementById('ai-run-btn').style.display = 'none';
@@ -6606,11 +6605,10 @@ async function _aiRunExtraction(emailText) {
     if (!apiKey) throw new Error('Configurez votre clé API dans ⚙️ Configurer avant d\'analyser.');
     const prompt = _aiBuildPromptLocal(emailText, sections);
     _aiExtracted = await _aiCallProviderDirect(provider, apiKey, prompt);
+    document.getElementById('ai-panel-file').classList.remove('active');
     _renderAIStep2();
   } catch(e) {
     _showAIError('Erreur d\'analyse IA : ' + e.message);
-    document.getElementById('ai-panel-file').classList.add('active');
-    document.getElementById('ai-loading').style.display = 'none';
     if (document.getElementById('ai-run-btn')) document.getElementById('ai-run-btn').style.display = '';
   }
 }
