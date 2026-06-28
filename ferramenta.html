@@ -6919,6 +6919,10 @@ function runAIExtraction() { _aiRunFileExtraction(); }
           <label>Site</label>
           <input type="text" id="tk-input-linked" placeholder="Saisir le site..." />
         </div>
+        <div id="tk-generic-prise-row" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="tk-field" style="flex:2;min-width:180px;"><label>Prise en compte (cellule technique ou chef soudeur)</label><input type="text" id="tk-input-prise-en-compte" /></div>
+          <div class="tk-field" style="flex:1;min-width:150px;"><label>Date / heure</label><input type="datetime-local" id="tk-input-prise-date" /></div>
+        </div>
 
         <!-- Export du ticket (Incident / Non-conformité / Demande) -->
         <div id="tk-generic-export-row" style="margin-top:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -7128,6 +7132,7 @@ function _tkToggleEquipBlock() {
   const isEquip = document.getElementById('tk-input-type').value === 'equipement-degrade';
   document.getElementById('tk-equip-block').style.display = isEquip ? 'block' : 'none';
   document.getElementById('tk-linked-field').style.display = isEquip ? 'none' : 'block';
+  document.getElementById('tk-generic-prise-row').style.display = isEquip ? 'none' : 'flex';
   document.getElementById('tk-generic-export-row').style.display = isEquip ? 'none' : 'flex';
 }
 function _tkOpenImage(src) {
@@ -7313,6 +7318,8 @@ function _tkBuildGenericTicketTables() {
   const priority = document.getElementById('tk-input-priority').value;
   const status = document.getElementById('tk-input-status').value;
   const site = document.getElementById('tk-input-linked').value.trim();
+  const priseEnCompte = document.getElementById('tk-input-prise-en-compte').value.trim();
+  const priseDate = document.getElementById('tk-input-prise-date').value;
   const number = (_tkEditingId && (_tkLoad().find(t=>t.id===_tkEditingId)||{}).number) || '—';
   const histTicket = _tkEditingId ? _tkLoad().find(t=>t.id===_tkEditingId) : null;
   const histHTML = (histTicket && histTicket.history && histTicket.history.length)
@@ -7325,6 +7332,9 @@ function _tkBuildGenericTicketTables() {
   </table>
   <table><tr><td class="hdr" colspan="2">Description</td></tr>
   <tr><td>${escHtml(desc).replace(/\n/g,'<br>') || '—'}</td></tr>
+  </table>
+  <table><tr><td class="hdr" colspan="4">Prise en compte et solde de la demande</td></tr>
+  <tr><td class="lbl">Prise en compte cellule technique ou chef soudeur</td><td>${escHtml(priseEnCompte)}</td><td class="lbl">Date/heure</td><td>${priseDate ? new Date(priseDate).toLocaleString('fr-FR') : ''}</td></tr>
   </table>
   <table><tr><td class="hdr" colspan="2">Historique</td></tr>
   <tr><td>${histHTML}</td></tr>
@@ -7380,6 +7390,8 @@ function _tkShowNewForm() {
   document.getElementById('tk-input-priority').value = 'normale';
   document.getElementById('tk-input-status').value = 'ouvert';
   document.getElementById('tk-input-linked').value = '';
+  document.getElementById('tk-input-prise-en-compte').value = '';
+  document.getElementById('tk-input-prise-date').value = '';
   document.getElementById('tk-history-block').style.display = 'none';
   document.getElementById('tk-delete-btn').style.display = 'none';
   _tkClearEquipFields();
@@ -7397,6 +7409,8 @@ function _tkEditTicket(id) {
   document.getElementById('tk-input-priority').value = ticket.priority || 'normale';
   document.getElementById('tk-input-status').value = ticket.status || 'ouvert';
   document.getElementById('tk-input-linked').value = ticket.site || '';
+  document.getElementById('tk-input-prise-en-compte').value = ticket.priseEnCompte || '';
+  document.getElementById('tk-input-prise-date').value = ticket.priseDate || '';
   document.getElementById('tk-history-block').style.display = 'block';
   document.getElementById('tk-delete-btn').style.display = '';
   _tkRenderHistory(ticket.history || []);
@@ -7431,6 +7445,8 @@ function _tkSaveTicket() {
   const title = document.getElementById('tk-input-title').value.trim();
   if (!title) { showToast('⚠️ Le titre est obligatoire.'); return; }
   const site = document.getElementById('tk-input-linked').value.trim();
+  const priseEnCompte = document.getElementById('tk-input-prise-en-compte').value.trim();
+  const priseDate = document.getElementById('tk-input-prise-date').value;
   const tickets = _tkLoad();
   const now = new Date().toISOString();
 
@@ -7448,6 +7464,8 @@ function _tkSaveTicket() {
     }
     ticket.status = newStatus;
     ticket.site = site;
+    ticket.priseEnCompte = priseEnCompte;
+    ticket.priseDate = priseDate;
     ticket.equip = ticket.type === 'equipement-degrade' ? _tkCollectEquipFields() : undefined;
     ticket.updatedAt = now;
     if (!_tkSave(tickets)) return;
@@ -7463,6 +7481,8 @@ function _tkSaveTicket() {
       priority: document.getElementById('tk-input-priority').value,
       status: document.getElementById('tk-input-status').value,
       site,
+      priseEnCompte,
+      priseDate,
       equip: type === 'equipement-degrade' ? _tkCollectEquipFields() : undefined,
       createdAt: now, updatedAt: now,
       history: [{ date: now, text: `Ticket créé (statut initial : ${TK_STATUS_LABELS[document.getElementById('tk-input-status').value] || document.getElementById('tk-input-status').value}).` }],
