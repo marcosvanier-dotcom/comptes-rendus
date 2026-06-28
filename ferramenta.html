@@ -6639,8 +6639,16 @@ async function _aiRunFileExtraction() {
   if (emailText === null) return;
   await _aiRunExtraction(emailText);
 }
+// ─── Verrou partagé : empêche de lancer Analyser et Résumer en même temps ──
+let _aiBusy = false;
+function _aiSetBusy(busy) {
+  _aiBusy = busy;
+  if (document.getElementById('ai-run-btn')) document.getElementById('ai-run-btn').disabled = busy;
+  if (document.getElementById('ai-summary-btn')) document.getElementById('ai-summary-btn').disabled = busy;
+}
 // ─── RÉSUMÉ DE L'EMAIL (indépendant de l'extraction d'actions) ──
 async function _aiRunSummary() {
+  if (_aiBusy) { showToast('⏳ Une analyse est déjà en cours, patientez.'); return; }
   const emailText = _aiGetEmailTextOrError();
   if (emailText === null) return;
 
@@ -6648,8 +6656,7 @@ async function _aiRunSummary() {
   document.getElementById('ai-error').style.display = 'none';
   document.getElementById('ai-loading-msg').textContent = 'Résumé en cours…';
   document.getElementById('ai-loading').style.display = 'flex';
-  if (document.getElementById('ai-run-btn')) document.getElementById('ai-run-btn').disabled = true;
-  if (document.getElementById('ai-summary-btn')) document.getElementById('ai-summary-btn').disabled = true;
+  _aiSetBusy(true);
 
   const { provider, apiKey } = _aiGetActiveProviderAndKey();
   try {
@@ -6663,8 +6670,7 @@ async function _aiRunSummary() {
   } finally {
     document.getElementById('ai-loading').style.display = 'none';
     document.getElementById('ai-loading-msg').textContent = 'Analyse en cours…';
-    if (document.getElementById('ai-run-btn')) document.getElementById('ai-run-btn').disabled = false;
-    if (document.getElementById('ai-summary-btn')) document.getElementById('ai-summary-btn').disabled = false;
+    _aiSetBusy(false);
   }
 }
 function _aiCopySummary() {
@@ -6764,8 +6770,10 @@ ${String(emailText||'').slice(0, 6000)}
 }
 
 async function _aiRunExtraction(emailText) {
+  if (_aiBusy) { showToast('⏳ Une analyse est déjà en cours, patientez.'); return; }
   document.getElementById('ai-loading').style.display = 'flex';
   document.getElementById('ai-error').style.display = 'none';
+  _aiSetBusy(true);
   if (document.getElementById('ai-run-btn')) document.getElementById('ai-run-btn').style.display = 'none';
 
   const sections = state.sections.map(s => ({ id: s.id, label: s.label, emoji: s.emoji }));
@@ -6779,7 +6787,10 @@ async function _aiRunExtraction(emailText) {
     _renderAIStep2();
   } catch(e) {
     _showAIError('Erreur d\'analyse IA : ' + e.message);
+  } finally {
+    _aiSetBusy(false);
     if (document.getElementById('ai-run-btn')) document.getElementById('ai-run-btn').style.display = '';
+    document.getElementById('ai-loading').style.display = 'none';
   }
 }
 
@@ -7079,7 +7090,13 @@ function _tkLoad() {
   try { return JSON.parse(localStorage.getItem(TICKETS_KEY) || '[]'); } catch(e) { return []; }
 }
 function _tkSave(tickets) {
-  localStorage.setItem(TICKETS_KEY, JSON.stringify(tickets));
+  try {
+    localStorage.setItem(TICKETS_KEY, JSON.stringify(tickets));
+    return true;
+  } catch(e) {
+    showToast('❌ Échec de l\'enregistrement (stockage local plein). Réduisez la taille des photos jointes.');
+    return false;
+  }
 }
 function _tkNextNumber(tickets) {
   const year = new Date().getFullYear();
@@ -7303,7 +7320,7 @@ function _tkAddHistoryNote() {
   ticket.history = ticket.history || [];
   ticket.history.push({ date: new Date().toISOString(), text });
   ticket.updatedAt = new Date().toISOString();
-  _tkSave(tickets);
+  if (!_tkSave(tickets)) return;
   input.value = '';
   _tkRenderHistory(ticket.history);
   showToast('✅ Note ajoutée.');
@@ -7340,6 +7357,7 @@ function _tkSaveTicket() {
     ticket.linkedItemText = linkedItemText;
     ticket.equip = ticket.type === 'equipement-degrade' ? _tkCollectEquipFields() : undefined;
     ticket.updatedAt = now;
+    if (!_tkSave(tickets)) return;
     showToast(`✅ Ticket ${ticket.number} mis à jour.`);
   } else {
     const type = document.getElementById('tk-input-type').value;
@@ -7358,9 +7376,9 @@ function _tkSaveTicket() {
       history: [{ date: now, text: 'Ticket créé.' }],
     };
     tickets.push(ticket);
+    if (!_tkSave(tickets)) return;
     showToast(`✅ Ticket ${ticket.number} créé.`);
   }
-  _tkSave(tickets);
   _tkShowList();
 }
 function _tkDeleteCurrentTicket() {
