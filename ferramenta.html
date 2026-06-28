@@ -212,6 +212,7 @@ body.compact [id^="rtf-"] { display:none; }
     <button class="action-btn" id="collapse-btn" onclick="toggleAllSections()" title="Réduire ou déplier toutes les rubriques">▼ <span id="collapse-label">Tout réduire</span></button>
     <button class="action-btn" onclick="clearAutosave()">🔄 <span data-t="clearSave">Réinitialiser</span></button>
     <button class="action-btn" onclick="openAIEmailModal()" title="Importer automatiquement un e-mail via IA" style="background:#e8eaf6;border-color:#9fa8da;color:#1a237e;font-weight:700;">🤖 IA — Import e-mail</button>
+    <button class="action-btn" onclick="openTicketModal()" title="Gérer les tickets (incidents, non-conformités, demandes)">🎫 Tickets</button>
     <button class="action-btn" onclick="openDailyBackup()" title="Voir les sauvegardes automatiques quotidiennes">🗄 Sauvegardes</button>
     <input type="file" id="file-import" accept=".json" onchange="importSession(event)" />
     <input type="file" id="file-second" accept=".json" onchange="loadSecondSession(event)" style="display:none;" />
@@ -6892,6 +6893,306 @@ function importAIItems() {
 // ─── COMPAT aliases (used by old paste flow) ─────────────────────
 function showAIStep1() { _aiBackToSource(); }
 function runAIExtraction() { _aiRunFileExtraction(); }
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     🎫 TICKETS — incidents / non-conformités / demandes
+     Stockage indépendant des sessions CR (localStorage dédié)
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+.tk-card { background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:10px 14px;margin-bottom:8px;cursor:pointer;border-left:4px solid #9e9e9e;transition:box-shadow 0.15s; }
+.tk-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+.tk-card.tk-ouvert      { border-left-color:#1a73e8; }
+.tk-card.tk-en-cours    { border-left-color:#f57c00; }
+.tk-card.tk-resolu      { border-left-color:#2e7d32; }
+.tk-card.tk-ferme       { border-left-color:#9e9e9e; opacity:0.7; }
+.tk-badge { font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;display:inline-block; }
+.tk-field label { font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px;margin-top:10px; }
+.tk-field input,.tk-field select,.tk-field textarea { width:100%;box-sizing:border-box;padding:7px 10px;font-size:12px;border:1px solid #ddd;border-radius:6px;font-family:inherit; }
+</style>
+
+<div id="ticket-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:680px;max-width:96%;max-height:92vh;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.28);display:flex;flex-direction:column;">
+
+    <div style="background:linear-gradient(135deg,#37474f,#546e7a);padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div style="font-size:15px;font-weight:700;color:#fff;">🎫 Tickets — incidents, non-conformités, demandes</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="_tkShowNewForm()" style="background:rgba(255,255,255,0.18);border:none;border-radius:7px;padding:6px 12px;cursor:pointer;color:#fff;font-size:12px;font-weight:700;">➕ Nouveau ticket</button>
+        <button onclick="closeTicketModal()" style="background:rgba(255,255,255,0.15);border:none;border-radius:7px;padding:5px 9px;cursor:pointer;color:#fff;font-size:16px;">✕</button>
+      </div>
+    </div>
+
+    <div style="padding:16px 22px;overflow-y:auto;flex:1;">
+
+      <!-- LISTE -->
+      <div id="tk-list-view">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+          <input type="text" id="tk-filter-text" placeholder="🔍 Filtrer par titre/numéro..." oninput="_tkRenderList()" style="flex:1;min-width:160px;padding:7px 10px;font-size:12px;border:1px solid #ddd;border-radius:7px;" />
+          <select id="tk-filter-status" onchange="_tkRenderList()" style="padding:7px 10px;font-size:12px;border:1px solid #ddd;border-radius:7px;">
+            <option value="">Tous les statuts</option>
+            <option value="ouvert">🟢 Ouvert</option>
+            <option value="en-cours">🔄 En cours</option>
+            <option value="resolu">✅ Résolu</option>
+            <option value="ferme">⚫ Fermé</option>
+          </select>
+        </div>
+        <div id="tk-list-container"></div>
+      </div>
+
+      <!-- FORMULAIRE NOUVEAU / ÉDITION -->
+      <div id="tk-form-view" style="display:none;">
+        <button onclick="_tkShowList()" style="font-size:11px;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:4px 10px;cursor:pointer;color:#666;margin-bottom:8px;">← Retour à la liste</button>
+        <div class="tk-field">
+          <label>Type</label>
+          <select id="tk-input-type">
+            <option value="incident">🔴 Incident</option>
+            <option value="non-conformite">⚠️ Non-conformité</option>
+            <option value="demande">📩 Demande</option>
+          </select>
+        </div>
+        <div class="tk-field">
+          <label>Titre</label>
+          <input type="text" id="tk-input-title" placeholder="Résumé court du ticket" />
+        </div>
+        <div class="tk-field">
+          <label>Description</label>
+          <textarea id="tk-input-desc" rows="4" placeholder="Détails du problème ou de la demande..."></textarea>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <div class="tk-field" style="flex:1;">
+            <label>Priorité</label>
+            <select id="tk-input-priority">
+              <option value="basse">— Basse</option>
+              <option value="normale" selected>Normale</option>
+              <option value="haute">⭐ Haute</option>
+              <option value="critique">🚨 Critique</option>
+            </select>
+          </div>
+          <div class="tk-field" style="flex:1;">
+            <label>Statut</label>
+            <select id="tk-input-status">
+              <option value="ouvert">🟢 Ouvert</option>
+              <option value="en-cours">🔄 En cours</option>
+              <option value="resolu">✅ Résolu</option>
+              <option value="ferme">⚫ Fermé</option>
+            </select>
+          </div>
+        </div>
+        <div class="tk-field">
+          <label>Lier à un élément du CR (optionnel)</label>
+          <select id="tk-input-linked"><option value="">— Aucun —</option></select>
+        </div>
+
+        <!-- Historique (édition seulement) -->
+        <div id="tk-history-block" style="display:none;margin-top:14px;border-top:1px solid #eee;padding-top:10px;">
+          <label style="font-size:11px;font-weight:600;color:#555;">Historique</label>
+          <div id="tk-history-list" style="max-height:140px;overflow-y:auto;margin:6px 0;font-size:11px;color:#666;"></div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="tk-history-note" placeholder="Ajouter une note..." style="flex:1;padding:6px 10px;font-size:11px;border:1px solid #ddd;border-radius:6px;" />
+            <button onclick="_tkAddHistoryNote()" style="font-size:11px;background:#e8eaf6;border:1px solid #c5cae9;color:#1a237e;border-radius:6px;padding:6px 12px;cursor:pointer;">+ Ajouter</button>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:10px;">
+          <button onclick="_tkSaveTicket()" style="padding:10px 22px;font-size:13px;font-weight:700;background:#1a237e;color:#fff;border:none;border-radius:8px;cursor:pointer;">💾 Enregistrer</button>
+          <button id="tk-delete-btn" onclick="_tkDeleteCurrentTicket()" style="display:none;padding:10px 18px;font-size:12px;background:#ffebee;color:#c62828;border:1px solid #ffcdd2;border-radius:8px;cursor:pointer;">🗑 Supprimer</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STOCKAGE ──────────────────────────────────────────────────
+const TICKETS_KEY = 'cr-tickets-v1';
+let _tkEditingId = null;
+
+function _tkLoad() {
+  try { return JSON.parse(localStorage.getItem(TICKETS_KEY) || '[]'); } catch(e) { return []; }
+}
+function _tkSave(tickets) {
+  localStorage.setItem(TICKETS_KEY, JSON.stringify(tickets));
+}
+function _tkNextNumber(tickets) {
+  const year = new Date().getFullYear();
+  const countThisYear = tickets.filter(t => t.number && t.number.startsWith('T-' + year + '-')).length;
+  return `T-${year}-${String(countThisYear + 1).padStart(3,'0')}`;
+}
+const TK_TYPE_LABELS = { incident:'🔴 Incident', 'non-conformite':'⚠️ Non-conformité', demande:'📩 Demande' };
+const TK_STATUS_LABELS = { ouvert:'🟢 Ouvert', 'en-cours':'🔄 En cours', resolu:'✅ Résolu', ferme:'⚫ Fermé' };
+const TK_PRIORITY_LABELS = { basse:'— Basse', normale:'Normale', haute:'⭐ Haute', critique:'🚨 Critique' };
+
+// ─── OUVERTURE / FERMETURE ────────────────────────────────────────
+function openTicketModal() {
+  document.getElementById('ticket-modal').style.display = 'flex';
+  _tkShowList();
+}
+function closeTicketModal() {
+  document.getElementById('ticket-modal').style.display = 'none';
+}
+function _tkShowList() {
+  _tkEditingId = null;
+  document.getElementById('tk-form-view').style.display = 'none';
+  document.getElementById('tk-list-view').style.display = 'block';
+  _tkRenderList();
+}
+
+// ─── LISTE ─────────────────────────────────────────────────────
+function _tkRenderList() {
+  const tickets = _tkLoad().sort((a,b) => (b.updatedAt||'').localeCompare(a.updatedAt||''));
+  const textFilter = (document.getElementById('tk-filter-text').value || '').toLowerCase();
+  const statusFilter = document.getElementById('tk-filter-status').value;
+  const filtered = tickets.filter(t =>
+    (!statusFilter || t.status === statusFilter) &&
+    (!textFilter || (t.title||'').toLowerCase().includes(textFilter) || (t.number||'').toLowerCase().includes(textFilter))
+  );
+  const container = document.getElementById('tk-list-container');
+  if (!filtered.length) {
+    container.innerHTML = '<div style="text-align:center;color:#aaa;padding:30px;font-style:italic;">Aucun ticket pour le moment.</div>';
+    return;
+  }
+  container.innerHTML = filtered.map(t => `
+    <div class="tk-card tk-${t.status}" onclick="_tkEditTicket('${t.id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="font-size:12px;font-weight:700;color:#1a237e;">${escHtml(t.number)} — ${escHtml(t.title||'(sans titre)')}</div>
+        <span class="tk-badge" style="background:#eceff1;color:#37474f;">${TK_STATUS_LABELS[t.status]||t.status}</span>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
+        <span>${TK_TYPE_LABELS[t.type]||t.type}</span>
+        <span>${TK_PRIORITY_LABELS[t.priority]||t.priority}</span>
+        ${t.linkedItemText?`<span>🔗 ${escHtml(t.linkedItemText)}</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+// ─── FORMULAIRE ────────────────────────────────────────────────
+function _tkPopulateLinkedSelect(selectedValue) {
+  const sel = document.getElementById('tk-input-linked');
+  const options = ['<option value="">— Aucun —</option>'];
+  state.sections.forEach(sec => {
+    (sec.items||[]).forEach((it, idx) => {
+      const value = sec.id + '::' + idx;
+      const label = `${sec.emoji} ${sec.label} — ${(it.text||'(sans titre)').slice(0,60)}`;
+      options.push(`<option value="${escHtml(value)}">${escHtml(label)}</option>`);
+    });
+  });
+  sel.innerHTML = options.join('');
+  sel.value = selectedValue || '';
+}
+function _tkShowNewForm() {
+  _tkEditingId = null;
+  document.getElementById('tk-list-view').style.display = 'none';
+  document.getElementById('tk-form-view').style.display = 'block';
+  document.getElementById('tk-input-type').value = 'incident';
+  document.getElementById('tk-input-title').value = '';
+  document.getElementById('tk-input-desc').value = '';
+  document.getElementById('tk-input-priority').value = 'normale';
+  document.getElementById('tk-input-status').value = 'ouvert';
+  _tkPopulateLinkedSelect('');
+  document.getElementById('tk-history-block').style.display = 'none';
+  document.getElementById('tk-delete-btn').style.display = 'none';
+}
+function _tkEditTicket(id) {
+  const ticket = _tkLoad().find(t => t.id === id);
+  if (!ticket) return;
+  _tkEditingId = id;
+  document.getElementById('tk-list-view').style.display = 'none';
+  document.getElementById('tk-form-view').style.display = 'block';
+  document.getElementById('tk-input-type').value = ticket.type || 'incident';
+  document.getElementById('tk-input-title').value = ticket.title || '';
+  document.getElementById('tk-input-desc').value = ticket.description || '';
+  document.getElementById('tk-input-priority').value = ticket.priority || 'normale';
+  document.getElementById('tk-input-status').value = ticket.status || 'ouvert';
+  _tkPopulateLinkedSelect(ticket.linkedKey || '');
+  document.getElementById('tk-history-block').style.display = 'block';
+  document.getElementById('tk-delete-btn').style.display = '';
+  _tkRenderHistory(ticket.history || []);
+}
+function _tkRenderHistory(history) {
+  const list = document.getElementById('tk-history-list');
+  if (!history.length) { list.innerHTML = '<div style="font-style:italic;color:#aaa;">Aucune note.</div>'; return; }
+  list.innerHTML = history.slice().reverse().map(h => {
+    const d = new Date(h.date).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `<div style="margin-bottom:4px;"><b>${d}</b> — ${escHtml(h.text)}</div>`;
+  }).join('');
+}
+function _tkAddHistoryNote() {
+  if (!_tkEditingId) { showToast('⚠️ Enregistrez le ticket avant d\'ajouter une note.'); return; }
+  const input = document.getElementById('tk-history-note');
+  const text = input.value.trim();
+  if (!text) return;
+  const tickets = _tkLoad();
+  const ticket = tickets.find(t => t.id === _tkEditingId);
+  if (!ticket) return;
+  ticket.history = ticket.history || [];
+  ticket.history.push({ date: new Date().toISOString(), text });
+  ticket.updatedAt = new Date().toISOString();
+  _tkSave(tickets);
+  input.value = '';
+  _tkRenderHistory(ticket.history);
+  showToast('✅ Note ajoutée.');
+}
+function _tkSaveTicket() {
+  const title = document.getElementById('tk-input-title').value.trim();
+  if (!title) { showToast('⚠️ Le titre est obligatoire.'); return; }
+  const linkedValue = document.getElementById('tk-input-linked').value;
+  let linkedSectionId = '', linkedItemText = '';
+  if (linkedValue) {
+    const [secId, idxStr] = linkedValue.split('::');
+    const sec = state.sections.find(s => s.id === secId);
+    const item = sec && sec.items[+idxStr];
+    if (sec && item) { linkedSectionId = sec.id; linkedItemText = item.text || ''; }
+  }
+  const tickets = _tkLoad();
+  const now = new Date().toISOString();
+
+  if (_tkEditingId) {
+    const ticket = tickets.find(t => t.id === _tkEditingId);
+    if (!ticket) return;
+    ticket.type = document.getElementById('tk-input-type').value;
+    ticket.title = title;
+    ticket.description = document.getElementById('tk-input-desc').value.trim();
+    ticket.priority = document.getElementById('tk-input-priority').value;
+    const newStatus = document.getElementById('tk-input-status').value;
+    if (newStatus !== ticket.status) {
+      ticket.history = ticket.history || [];
+      ticket.history.push({ date: now, text: `Statut changé : ${TK_STATUS_LABELS[ticket.status]||ticket.status} → ${TK_STATUS_LABELS[newStatus]||newStatus}` });
+    }
+    ticket.status = newStatus;
+    ticket.linkedKey = linkedValue;
+    ticket.linkedSectionId = linkedSectionId;
+    ticket.linkedItemText = linkedItemText;
+    ticket.updatedAt = now;
+    showToast(`✅ Ticket ${ticket.number} mis à jour.`);
+  } else {
+    const ticket = {
+      id: 'tk_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      number: _tkNextNumber(tickets),
+      type: document.getElementById('tk-input-type').value,
+      title,
+      description: document.getElementById('tk-input-desc').value.trim(),
+      priority: document.getElementById('tk-input-priority').value,
+      status: document.getElementById('tk-input-status').value,
+      linkedKey: linkedValue,
+      linkedSectionId, linkedItemText,
+      createdAt: now, updatedAt: now,
+      history: [{ date: now, text: 'Ticket créé.' }],
+    };
+    tickets.push(ticket);
+    showToast(`✅ Ticket ${ticket.number} créé.`);
+  }
+  _tkSave(tickets);
+  _tkShowList();
+}
+function _tkDeleteCurrentTicket() {
+  if (!_tkEditingId) return;
+  if (!confirm('Supprimer définitivement ce ticket ?')) return;
+  const tickets = _tkLoad().filter(t => t.id !== _tkEditingId);
+  _tkSave(tickets);
+  showToast('🗑 Ticket supprimé.');
+  _tkShowList();
+}
 </script>
 </body>
 </html>
