@@ -7272,6 +7272,7 @@ function _tkFicheFileName() {
 function _tkPrintEquipFiche() {
   const tables = _tkBuildFicheTables();
   const w = window.open('', '_blank');
+  if (!w) { showToast('⚠️ Bloqueur de popup : autorisez les fenêtres pour imprimer la fiche.'); return; }
   w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiche de situation dégradée</title>
   <style>
     body{font-family:Arial,sans-serif;font-size:12px;color:#000;margin:20px;}
