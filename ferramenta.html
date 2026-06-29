@@ -4091,16 +4091,18 @@ let _respMap = {};
 function openResponsableView() {
   const modal    = document.getElementById("resp-modal");
   const statuses = t("statuses");
-  const allItems = state.sections.flatMap(s => s.items.filter(i => i.text.trim()));
   _respMap = {};
-  allItems.forEach(i => {
-    const rRaw = (i.responsable||'').trim();
-    const r = rRaw ? rRaw.charAt(0).toUpperCase() + rRaw.slice(1).toLowerCase() : '(Non assigné)';
-    if (!_respMap[r]) _respMap[r] = { items:[], total:0, done:0, pctSum:0 };
-    _respMap[r].items.push(i);
-    _respMap[r].total++;
-    if (i.status==='termine') _respMap[r].done++;
-    _respMap[r].pctSum += (i.pct??0);
+  state.sections.forEach((sec, si) => {
+    sec.items.forEach((i, ii) => {
+      if (!i.text.trim()) return;
+      const rRaw = (i.responsable||'').trim();
+      const r = rRaw ? rRaw.charAt(0).toUpperCase() + rRaw.slice(1).toLowerCase() : '(Non assigné)';
+      if (!_respMap[r]) _respMap[r] = { items:[], total:0, done:0, pctSum:0 };
+      _respMap[r].items.push({ ...i, _si: si, _ii: ii });
+      _respMap[r].total++;
+      if (i.status==='termine') _respMap[r].done++;
+      _respMap[r].pctSum += (i.pct??0);
+    });
   });
   const searchEl = document.getElementById("resp-search");
   if (searchEl) searchEl.value = "";
@@ -4146,7 +4148,7 @@ function renderResponsables(query, exactName) {
       <div style="background:#eee;border-radius:4px;height:5px;margin-bottom:8px;overflow:hidden;">
         <div style="height:5px;border-radius:4px;background:${pctC};width:${avgPct}%;"></div>
       </div>
-      ${data.items.map(i=>`<div style="font-size:11px;color:#555;padding:3px 0;border-bottom:1px solid #f5f5f5;">
+      ${data.items.map(i=>`<div onclick="closeRespModalAndNavigate(${i._si},${i._ii})" title="Cliquer pour accéder à cet élément" style="font-size:11px;color:#555;padding:3px 0;border-bottom:1px solid #f5f5f5;cursor:pointer;">
         • ${escHtml(i.text.trim())} — <span style="color:#888;">${statuses[i.status]||i.status}</span>
         ${i.site?`<span style="color:#888;"> · 📍 ${i.site}</span>`:''}
         ${i.dueDate?`<span style="color:#888;"> · 📅 ${i.dueDate}</span>`:''}
@@ -4157,6 +4159,10 @@ function renderResponsables(query, exactName) {
 
 function filterResponsables(query) {
   renderResponsables(query);
+}
+function closeRespModalAndNavigate(si, ii) {
+  document.getElementById("resp-modal").style.display = "none";
+  navigateToItem(si, ii);
 }
 function filterResponsablesByScope(value) {
   const searchEl = document.getElementById("resp-search");
