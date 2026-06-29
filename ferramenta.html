@@ -1347,6 +1347,22 @@ function renderItemHTML(si, ii, item, sec, statuses, priorities) {
           <button onclick="moveItemDown(${si},${ii})" title="↓" style="background:none;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:12px;padding:3px 5px;color:#888;" ${ii>=nItems-1?'disabled':''}>▼</button>
         </div>
       </div>
+      <div style="flex:1;position:relative;margin-top:4px;">
+        <div id="rtf-${si}-${ii}" contenteditable="true"
+          data-si="${si}" data-ii="${ii}" data-field="comment"
+          data-placeholder="${commentPlaceholder}"
+          style="min-height:36px;max-height:120px;overflow-y:auto;padding:6px 8px;font-size:12px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;outline:none;color:#333;line-height:1.6;font-family:Arial,sans-serif;"
+          oninput="updateItemRTF(${si},${ii},this,'comment')"
+          onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();updateItemRTF(${si},${ii},this,'comment');render();autosave();}"
+          onmouseup="showFloatingToolbar(event,${si},${ii})"
+          onkeyup="showFloatingToolbar(event,${si},${ii})"
+        >${item.comment||''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div style="width:44px;height:4px;background:#eee;border-radius:4px;overflow:hidden;">
+          <div style="height:4px;width:${pct}%;background:${pctC};border-radius:4px;transition:width 0.3s;"></div>
+        </div>
+      </div>
       ${tagsHtml?`<div class="item-tags-container" data-si="${si}" data-ii="${ii}" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${tagsHtml}</div>`:`<div class="item-tags-container" data-si="${si}" data-ii="${ii}" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;"></div>`}
       ${(item.subrows&&item.subrows.length)?item.subrows.map((sr,sri)=>`
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;padding:4px 8px;background:#f5f7ff;border-left:3px solid #c5cae9;border-radius:0 6px 6px 0;">
@@ -1397,25 +1413,6 @@ function renderItemHTML(si, ii, item, sec, statuses, priorities) {
           oninput="updateSubrow(${si},${ii},${sri},'comment',this.innerText)"
         >${escHtml(sr.comment||'')}</div>
       </div>`).join(''):''}
-
-      
-        <div style="flex:1;position:relative;">
-          <div id="rtf-${si}-${ii}" contenteditable="true"
-            data-si="${si}" data-ii="${ii}" data-field="comment"
-            data-placeholder="${commentPlaceholder}"
-            style="min-height:36px;max-height:120px;overflow-y:auto;padding:6px 8px;font-size:12px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa;outline:none;color:#333;line-height:1.6;font-family:Arial,sans-serif;"
-            oninput="updateItemRTF(${si},${ii},this,'comment')"
-            onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();updateItemRTF(${si},${ii},this,'comment');render();autosave();}"
-            onmouseup="showFloatingToolbar(event,${si},${ii})"
-            onkeyup="showFloatingToolbar(event,${si},${ii})"
-          >${item.comment||''}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-          <div style="width:44px;height:4px;background:#eee;border-radius:4px;overflow:hidden;">
-            <div style="height:4px;width:${pct}%;background:${pctC};border-radius:4px;transition:width 0.3s;"></div>
-          </div>
-        </div>
-      </div>
     </div>
     <button class="remove-btn" onclick="removeItem(${si},${ii})" title="Supprimer" style="align-self:flex-start;margin-top:4px;">✕</button>`;
 }
