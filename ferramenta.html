@@ -7116,7 +7116,10 @@ function _tkRenderList() {
     <div class="tk-card tk-${t.status}" onclick="_tkEditTicket('${t.id}')">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <div style="font-size:12px;font-weight:700;color:#1a237e;">${escHtml(t.number)} — ${escHtml(t.title||'(sans titre)')}</div>
-        <span class="tk-badge" style="background:#eceff1;color:#37474f;">${TK_STATUS_LABELS[t.status]||t.status}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="tk-badge" style="background:#eceff1;color:#37474f;">${TK_STATUS_LABELS[t.status]||t.status}</span>
+          <button onclick="event.stopPropagation();_tkDeleteTicketFromList('${t.id}')" title="Supprimer ce ticket" style="background:none;border:none;cursor:pointer;font-size:14px;color:#e57373;padding:0 2px;line-height:1;">🗑</button>
+        </div>
       </div>
       <div style="font-size:11px;color:#888;margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
         <span>${TK_TYPE_LABELS[t.type]||t.type}</span>
@@ -7124,6 +7127,13 @@ function _tkRenderList() {
         ${t.site?`<span>📍 ${escHtml(t.site)}</span>`:''}
       </div>
     </div>`).join('');
+}
+function _tkDeleteTicketFromList(id) {
+  if (!confirm('Supprimer définitivement ce ticket ?')) return;
+  const tickets = _tkLoad().filter(t => t.id !== id);
+  if (!_tkSave(tickets)) return;
+  showToast('🗑 Ticket supprimé.');
+  _tkRenderList();
 }
 
 // ─── FORMULAIRE ────────────────────────────────────────────────
