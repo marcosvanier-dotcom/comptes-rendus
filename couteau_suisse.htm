@@ -7122,6 +7122,18 @@ function importAIItems() {
           <label>Site</label>
           <input type="text" id="tk-input-linked" placeholder="Saisir le site..." />
         </div>
+        <div id="tk-generic-extra-row" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="tk-field" style="flex:1;min-width:140px;"><label>N° affaire</label><input type="text" id="tk-input-affaire" /></div>
+          <div class="tk-field" style="flex:1;min-width:120px;"><label>Heures passées</label><input type="number" min="0" step="0.5" id="tk-input-heures" placeholder="0" /></div>
+        </div>
+        <div id="tk-generic-machine-row" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="tk-field" style="flex:1;min-width:160px;"><label>Marque / type de machine</label><input type="text" id="tk-input-marque" /></div>
+          <div class="tk-field" style="flex:1;min-width:140px;"><label>N° de série (S/N)</label><input type="text" id="tk-input-serie" /></div>
+        </div>
+        <div class="tk-field" id="tk-generic-pieces-field">
+          <label>Pièces à commander / utilisées</label>
+          <textarea id="tk-input-pieces" rows="2" placeholder="Ex : joint torique réf. 1234, 2x..."></textarea>
+        </div>
         <div id="tk-generic-prise-row" style="display:flex;gap:10px;flex-wrap:wrap;">
           <div class="tk-field" style="flex:2;min-width:180px;"><label>Prise en compte (cellule technique ou chef soudeur)</label><input type="text" id="tk-input-prise-en-compte" /></div>
           <div class="tk-field" style="flex:1;min-width:150px;"><label>Date / heure</label><input type="datetime-local" id="tk-input-prise-date" /></div>
@@ -7160,6 +7172,11 @@ function importAIItems() {
             </div>
           </div>
           <div class="tk-field"><label>Repère fonctionnel</label><input type="text" id="tk-eq-repere" /></div>
+          <div style="display:flex;gap:10px;">
+            <div class="tk-field" style="flex:1;"><label>N° affaire</label><input type="text" id="tk-eq-affaire" /></div>
+            <div class="tk-field" style="flex:1;"><label>Heures passées</label><input type="number" min="0" step="0.5" id="tk-eq-heures" placeholder="0" /></div>
+          </div>
+          <div class="tk-field"><label>Pièces à commander / utilisées</label><textarea id="tk-eq-pieces" rows="2" placeholder="Ex : joint torique réf. 1234, 2x..."></textarea></div>
           <div style="font-size:11px;font-weight:600;color:#555;margin-top:12px;">Désignation du matériel</div>
           <div style="display:flex;gap:10px;">
             <div class="tk-field" style="flex:1;"><label>Marque</label><input type="text" id="tk-eq-marque" placeholder="Ex : Polysoude" /></div>
@@ -7409,13 +7426,16 @@ function _tkDeleteTicketFromList(id) {
 
 // ─── FORMULAIRE ────────────────────────────────────────────────
 const TK_EQUIP_FIELDS = ['nom','date','site','repere','marque','nserie','generateur','version','tete','baie',
-  'desc-situation','desc-solution','prise-en-compte','prise-date'];
+  'affaire','heures','pieces','desc-situation','desc-solution','prise-en-compte','prise-date'];
 let _tkEquipPhotos = { situation: [], solution: [] };
 let _tkEquipLogFile = { name: '', data: '' };
 function _tkToggleEquipBlock() {
   const isEquip = document.getElementById('tk-input-type').value === 'equipement-degrade';
   document.getElementById('tk-equip-block').style.display = isEquip ? 'block' : 'none';
   document.getElementById('tk-linked-field').style.display = isEquip ? 'none' : 'block';
+  document.getElementById('tk-generic-extra-row').style.display = isEquip ? 'none' : 'flex';
+  document.getElementById('tk-generic-machine-row').style.display = isEquip ? 'none' : 'flex';
+  document.getElementById('tk-generic-pieces-field').style.display = isEquip ? 'none' : 'block';
   document.getElementById('tk-generic-prise-row').style.display = isEquip ? 'none' : 'flex';
   document.getElementById('tk-generic-export-row').style.display = isEquip ? 'none' : 'flex';
 }
@@ -7566,6 +7586,10 @@ function _tkBuildFicheTables() {
   <tr><td class="lbl">Fichier LOG</td><td>${eq.logFileName?escHtml(eq.logFileName):'—'}</td><td class="lbl">Version IHM</td><td>${escHtml(eq.version)}</td></tr>
   <tr><td class="lbl">Repère fonctionnel</td><td>${escHtml(eq.repere)}</td><td class="lbl">Tête</td><td>${escHtml(eq.tete)}</td></tr>
   <tr><td class="lbl">Baie vidéo</td><td colspan="3">${escHtml(eq.baie)}</td></tr>
+  <tr><td class="lbl">N° affaire</td><td>${escHtml(eq.affaire)}</td><td class="lbl">Heures passées</td><td>${escHtml(eq.heures)}</td></tr>
+  </table>
+  <table><tr><td class="hdr" colspan="2">Pièces à commander / utilisées</td></tr>
+  <tr><td>${escHtml(eq.pieces).replace(/\n/g,'<br>') || '—'}</td></tr>
   </table>
   <table><tr><td class="hdr" colspan="2">Description de la situation dégradée</td></tr>
   <tr><td style="width:55%;">${escHtml(eq['desc-situation']).replace(/\n/g,'<br>')}</td><td>${photosHTML(eq.photosSituation)}</td></tr>
@@ -7632,6 +7656,11 @@ function _tkBuildGenericTicketTables() {
   const priority = document.getElementById('tk-input-priority').value;
   const status = document.getElementById('tk-input-status').value;
   const site = document.getElementById('tk-input-linked').value.trim();
+  const affaire = document.getElementById('tk-input-affaire').value.trim();
+  const heures = document.getElementById('tk-input-heures').value;
+  const marque = document.getElementById('tk-input-marque').value.trim();
+  const serie = document.getElementById('tk-input-serie').value.trim();
+  const pieces = document.getElementById('tk-input-pieces').value.trim();
   const priseEnCompte = document.getElementById('tk-input-prise-en-compte').value.trim();
   const priseDate = document.getElementById('tk-input-prise-date').value;
   const number = (_tkEditingId && (_tkLoad().find(t=>t.id===_tkEditingId)||{}).number) || '—';
@@ -7643,9 +7672,14 @@ function _tkBuildGenericTicketTables() {
   <table><tr><td class="hdr" colspan="4">${TK_TYPE_LABELS[type]||type} — ${escHtml(title)}</td></tr>
   <tr><td class="lbl">N° ticket</td><td>${escHtml(number)}</td><td class="lbl">Site</td><td>${escHtml(site)}</td></tr>
   <tr><td class="lbl">Priorité</td><td>${escHtml(TK_PRIORITY_LABELS[priority]||priority)}</td><td class="lbl">Statut</td><td>${escHtml(TK_STATUS_LABELS[status]||status)}</td></tr>
+  <tr><td class="lbl">N° affaire</td><td>${escHtml(affaire)}</td><td class="lbl">Heures passées</td><td>${escHtml(heures)}</td></tr>
+  <tr><td class="lbl">Marque / type de machine</td><td>${escHtml(marque)}</td><td class="lbl">N° de série (S/N)</td><td>${escHtml(serie)}</td></tr>
   </table>
   <table><tr><td class="hdr" colspan="2">Description</td></tr>
   <tr><td>${desc || '—'}</td></tr>
+  </table>
+  <table><tr><td class="hdr" colspan="2">Pièces à commander / utilisées</td></tr>
+  <tr><td>${escHtml(pieces).replace(/\n/g,'<br>') || '—'}</td></tr>
   </table>
   <table><tr><td class="hdr" colspan="4">Prise en compte et solde de la demande</td></tr>
   <tr><td class="lbl">Prise en compte cellule technique ou chef soudeur</td><td>${escHtml(priseEnCompte)}</td><td class="lbl">Date/heure</td><td>${priseDate ? new Date(priseDate).toLocaleString('fr-FR') : ''}</td></tr>
@@ -7704,6 +7738,11 @@ function _tkShowNewForm() {
   document.getElementById('tk-input-priority').value = 'normale';
   document.getElementById('tk-input-status').value = 'ouvert';
   document.getElementById('tk-input-linked').value = '';
+  document.getElementById('tk-input-affaire').value = '';
+  document.getElementById('tk-input-heures').value = '';
+  document.getElementById('tk-input-marque').value = '';
+  document.getElementById('tk-input-serie').value = '';
+  document.getElementById('tk-input-pieces').value = '';
   document.getElementById('tk-input-prise-en-compte').value = '';
   document.getElementById('tk-input-prise-date').value = '';
   document.getElementById('tk-history-block').style.display = 'none';
@@ -7725,6 +7764,11 @@ function _tkEditTicket(id) {
   document.getElementById('tk-input-priority').value = ticket.priority || 'normale';
   document.getElementById('tk-input-status').value = ticket.status || 'ouvert';
   document.getElementById('tk-input-linked').value = ticket.site || '';
+  document.getElementById('tk-input-affaire').value = ticket.affaire || '';
+  document.getElementById('tk-input-heures').value = ticket.heures || '';
+  document.getElementById('tk-input-marque').value = ticket.marque || '';
+  document.getElementById('tk-input-serie').value = ticket.serie || '';
+  document.getElementById('tk-input-pieces').value = ticket.pieces || '';
   document.getElementById('tk-input-prise-en-compte').value = ticket.priseEnCompte || '';
   document.getElementById('tk-input-prise-date').value = ticket.priseDate || '';
   document.getElementById('tk-history-block').style.display = 'block';
@@ -7763,6 +7807,11 @@ function _tkSaveTicket() {
   const title = document.getElementById('tk-input-title').value.trim();
   if (!title) { showToast('⚠️ Le titre est obligatoire.'); return; }
   const site = document.getElementById('tk-input-linked').value.trim();
+  const affaire = document.getElementById('tk-input-affaire').value.trim();
+  const heures = document.getElementById('tk-input-heures').value;
+  const marque = document.getElementById('tk-input-marque').value.trim();
+  const serie = document.getElementById('tk-input-serie').value.trim();
+  const pieces = document.getElementById('tk-input-pieces').value.trim();
   const priseEnCompte = document.getElementById('tk-input-prise-en-compte').value.trim();
   const priseDate = document.getElementById('tk-input-prise-date').value;
   const tickets = _tkLoad();
@@ -7783,6 +7832,11 @@ function _tkSaveTicket() {
     ticket.status = newStatus;
     const isEquip = ticket.type === 'equipement-degrade';
     ticket.site = isEquip ? undefined : site;
+    ticket.affaire = isEquip ? undefined : affaire;
+    ticket.heures = isEquip ? undefined : heures;
+    ticket.marque = isEquip ? undefined : marque;
+    ticket.serie = isEquip ? undefined : serie;
+    ticket.pieces = isEquip ? undefined : pieces;
     ticket.priseEnCompte = isEquip ? undefined : priseEnCompte;
     ticket.priseDate = isEquip ? undefined : priseDate;
     ticket.equip = isEquip ? _tkCollectEquipFields() : undefined;
@@ -7792,6 +7846,7 @@ function _tkSaveTicket() {
     showToast(`✅ Ticket ${ticket.number} mis à jour.`);
   } else {
     const type = document.getElementById('tk-input-type').value;
+    const isEquip = type === 'equipement-degrade';
     const ticket = {
       id: 'tk_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       number: _tkNextNumber(tickets),
@@ -7800,10 +7855,15 @@ function _tkSaveTicket() {
       description: document.getElementById('tk-input-desc').innerHTML.trim(),
       priority: document.getElementById('tk-input-priority').value,
       status: document.getElementById('tk-input-status').value,
-      site: type === 'equipement-degrade' ? undefined : site,
-      priseEnCompte: type === 'equipement-degrade' ? undefined : priseEnCompte,
-      priseDate: type === 'equipement-degrade' ? undefined : priseDate,
-      equip: type === 'equipement-degrade' ? _tkCollectEquipFields() : undefined,
+      site: isEquip ? undefined : site,
+      affaire: isEquip ? undefined : affaire,
+      heures: isEquip ? undefined : heures,
+      marque: isEquip ? undefined : marque,
+      serie: isEquip ? undefined : serie,
+      pieces: isEquip ? undefined : pieces,
+      priseEnCompte: isEquip ? undefined : priseEnCompte,
+      priseDate: isEquip ? undefined : priseDate,
+      equip: isEquip ? _tkCollectEquipFields() : undefined,
       attachments: _tkAttachments,
       createdAt: now, updatedAt: now,
       history: [{ date: now, text: `Ticket créé (statut initial : ${TK_STATUS_LABELS[document.getElementById('tk-input-status').value] || document.getElementById('tk-input-status').value}).` }],
