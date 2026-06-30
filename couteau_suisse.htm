@@ -7031,7 +7031,10 @@ function importAIItems() {
             style="min-height:80px;max-height:240px;overflow-y:auto;padding:8px 10px;font-size:12px;border:1px solid #ddd;border-radius:6px;font-family:inherit;background:#fff;outline:none;color:#333;line-height:1.6;"
             onmouseup="showTicketDescToolbar()" onkeyup="showTicketDescToolbar()"></div>
         </div>
-        <div class="tk-field">
+        <div class="tk-field" style="padding:8px;border-radius:6px;transition:background 0.15s, outline 0.15s;"
+          ondragover="event.preventDefault();event.stopPropagation();this.classList.add('tk-dragover')"
+          ondragleave="this.classList.remove('tk-dragover')"
+          ondrop="event.preventDefault();event.stopPropagation();this.classList.remove('tk-dragover');_tkDropFiles(event)">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <button type="button" onclick="document.getElementById('tk-attach-file').click()" style="font-size:11px;background:#e8eaf6;border:1px solid #c5cae9;color:#1a237e;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:600;">📎 Joindre un fichier</button>
             <span style="font-size:11px;color:#888;">ou glissez-déposez un fichier/e-mail n'importe où dans ce formulaire</span>
