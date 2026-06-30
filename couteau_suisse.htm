@@ -684,6 +684,7 @@ body.compact [id^="rtf-"] { display:none; }
       <button id="sel-btn-pdf"   onclick="runSelectiveExport('pdf')"   style="padding:7px 14px;font-size:12px;background:#fce4ec;border:1px solid #f48fb1;color:#880e4f;border-radius:6px;cursor:pointer;transition:opacity .2s;">⬇ PDF</button>
       <button id="sel-btn-word"  onclick="runSelectiveExport('word')"  style="padding:7px 14px;font-size:12px;background:#e3f2fd;border:1px solid #90caf9;color:#0d47a1;border-radius:6px;cursor:pointer;transition:opacity .2s;">⬇ Word</button>
       <button id="sel-btn-excel" onclick="runSelectiveExport('excel')" style="padding:7px 14px;font-size:12px;background:#e8f5e9;border:1px solid #81c784;color:#1b5e20;border-radius:6px;cursor:pointer;transition:opacity .2s;">⬇ Excel</button>
+      <button id="sel-btn-csv"   onclick="runSelectiveExport('csv')"   style="padding:7px 14px;font-size:12px;background:#f3e5f5;border:1px solid #ce93d8;color:#4a148c;border-radius:6px;cursor:pointer;transition:opacity .2s;">⬇ CSV</button>
       <button id="sel-btn-json"  onclick="runSelectiveExport('json')"  style="padding:7px 14px;font-size:12px;background:#fff8e1;border:1px solid #ffe082;color:#e65100;border-radius:6px;cursor:pointer;transition:opacity .2s;">⬇ JSON</button>
     </div>
   </div>
@@ -4978,6 +4979,7 @@ function runSelectiveExport(format) {
   if (format==='pdf')   exportPDF();
   if (format==='word')  exportWord();
   if (format==='excel') exportExcel();
+  if (format==='csv')   exportCSVClean();
   if (format==='json') {
     const { dateStr, ref } = getMetaInfo();
     const payload = { exportedAt: new Date().toISOString(), metaDate: dateStr, metaRef: ref, sections: state.sections };
