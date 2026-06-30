@@ -7177,6 +7177,19 @@ function importAIItems() {
             <div class="tk-field" style="flex:1;"><label>Heures passées</label><input type="number" min="0" step="0.5" id="tk-eq-heures" placeholder="0" /></div>
           </div>
           <div class="tk-field"><label>Pièces à commander / utilisées</label><textarea id="tk-eq-pieces" rows="2" placeholder="Ex : joint torique réf. 1234, 2x..."></textarea></div>
+          <div class="tk-field"
+            ondragover="event.preventDefault();event.stopPropagation();this.classList.add('tk-dragover')"
+            ondragleave="this.classList.remove('tk-dragover')"
+            ondrop="event.preventDefault();event.stopPropagation();this.classList.remove('tk-dragover');_tkDropEquipPhoto(event,'pieces')">
+            <label>Photo / schéma — pièces (optionnel)</label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <button type="button" onclick="document.getElementById('tk-eq-photo-pieces').click()" style="font-size:11px;background:#e8eaf6;border:1px solid #c5cae9;color:#1a237e;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:600;">📎 Ajouter une/des photo(s)</button>
+              <span id="tk-eq-photo-pieces-filename" style="font-size:11px;color:#666;">Aucun fichier sélectionné</span>
+              <span style="font-size:11px;color:#888;">ou glissez-déposez ici</span>
+            </div>
+            <input type="file" id="tk-eq-photo-pieces" accept="image/*" multiple style="display:none;" onchange="_tkHandleEquipPhoto(this,'pieces')" />
+            <div id="tk-eq-photo-pieces-preview" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;"></div>
+          </div>
           <div style="font-size:11px;font-weight:600;color:#555;margin-top:12px;">Désignation du matériel</div>
           <div style="display:flex;gap:10px;">
             <div class="tk-field" style="flex:1;"><label>Marque</label><input type="text" id="tk-eq-marque" placeholder="Ex : Polysoude" /></div>
@@ -7427,7 +7440,7 @@ function _tkDeleteTicketFromList(id) {
 // ─── FORMULAIRE ────────────────────────────────────────────────
 const TK_EQUIP_FIELDS = ['nom','date','site','repere','marque','nserie','generateur','version','tete','baie',
   'affaire','heures','pieces','desc-situation','desc-solution','prise-en-compte','prise-date'];
-let _tkEquipPhotos = { situation: [], solution: [] };
+let _tkEquipPhotos = { situation: [], solution: [], pieces: [] };
 let _tkEquipLogFile = { name: '', data: '' };
 function _tkToggleEquipBlock() {
   const isEquip = document.getElementById('tk-input-type').value === 'equipement-degrade';
@@ -7447,10 +7460,11 @@ function _tkOpenImage(src) {
 }
 // Convertit l'ancien format (une seule photo en string) en tableau, pour les tickets déjà enregistrés.
 function _tkNormalizePhotos(equip, which) {
-  const arr = equip['photos' + (which === 'situation' ? 'Situation' : 'Solution')];
+  const suffix = which.charAt(0).toUpperCase() + which.slice(1);
+  const arr = equip['photos' + suffix];
   if (Array.isArray(arr)) return arr;
-  const legacy = equip['photo' + (which === 'situation' ? 'Situation' : 'Solution')];
-  return legacy ? [{ name: equip['photo' + (which === 'situation' ? 'Situation' : 'Solution') + 'Name'] || 'photo', data: legacy }] : [];
+  const legacy = equip['photo' + suffix];
+  return legacy ? [{ name: equip['photo' + suffix + 'Name'] || 'photo', data: legacy }] : [];
 }
 function _tkRenderPhotoGallery(which) {
   const photos = _tkEquipPhotos[which];
@@ -7546,22 +7560,25 @@ function _tkDropEquipLogFile(event) {
 }
 function _tkClearEquipFields() {
   TK_EQUIP_FIELDS.forEach(f => { const el = document.getElementById('tk-eq-'+f); if (el) el.value = ''; });
-  _tkEquipPhotos = { situation: [], solution: [] };
+  _tkEquipPhotos = { situation: [], solution: [], pieces: [] };
   _tkEquipLogFile = { name:'', data:'' };
   _tkRenderPhotoGallery('situation');
   _tkRenderPhotoGallery('solution');
+  _tkRenderPhotoGallery('pieces');
   _tkRenderEquipLogFile();
   const fis = document.getElementById('tk-eq-photo-situation'); if (fis) fis.value='';
   const fso = document.getElementById('tk-eq-photo-solution'); if (fso) fso.value='';
+  const fpi = document.getElementById('tk-eq-photo-pieces'); if (fpi) fpi.value='';
   const flog = document.getElementById('tk-eq-log-file'); if (flog) flog.value='';
 }
 function _tkFillEquipFields(equip) {
   equip = equip || {};
   TK_EQUIP_FIELDS.forEach(f => { const el = document.getElementById('tk-eq-'+f); if (el) el.value = equip[f] || ''; });
-  _tkEquipPhotos = { situation: _tkNormalizePhotos(equip,'situation'), solution: _tkNormalizePhotos(equip,'solution') };
+  _tkEquipPhotos = { situation: _tkNormalizePhotos(equip,'situation'), solution: _tkNormalizePhotos(equip,'solution'), pieces: _tkNormalizePhotos(equip,'pieces') };
   _tkEquipLogFile = { name: equip.logFileName||'', data: equip.logFileData||'' };
   _tkRenderPhotoGallery('situation');
   _tkRenderPhotoGallery('solution');
+  _tkRenderPhotoGallery('pieces');
   _tkRenderEquipLogFile();
 }
 function _tkCollectEquipFields() {
@@ -7569,6 +7586,7 @@ function _tkCollectEquipFields() {
   TK_EQUIP_FIELDS.forEach(f => { equip[f] = (document.getElementById('tk-eq-'+f)||{}).value || ''; });
   equip.photosSituation = _tkEquipPhotos.situation;
   equip.photosSolution = _tkEquipPhotos.solution;
+  equip.photosPieces = _tkEquipPhotos.pieces;
   equip.logFileName = _tkEquipLogFile.name || '';
   equip.logFileData = _tkEquipLogFile.data || '';
   return equip;
@@ -7589,7 +7607,7 @@ function _tkBuildFicheTables() {
   <tr><td class="lbl">N° affaire</td><td>${escHtml(eq.affaire)}</td><td class="lbl">Heures passées</td><td>${escHtml(eq.heures)}</td></tr>
   </table>
   <table><tr><td class="hdr" colspan="2">Pièces à commander / utilisées</td></tr>
-  <tr><td>${escHtml(eq.pieces).replace(/\n/g,'<br>') || '—'}</td></tr>
+  <tr><td style="width:55%;">${escHtml(eq.pieces).replace(/\n/g,'<br>') || '—'}</td><td>${photosHTML(eq.photosPieces)}</td></tr>
   </table>
   <table><tr><td class="hdr" colspan="2">Description de la situation dégradée</td></tr>
   <tr><td style="width:55%;">${escHtml(eq['desc-situation']).replace(/\n/g,'<br>')}</td><td>${photosHTML(eq.photosSituation)}</td></tr>
