@@ -7092,6 +7092,10 @@ function importAIItems() {
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <button type="button" onclick="document.getElementById('tk-eq-log-file').click()" style="font-size:11px;background:#e8eaf6;border:1px solid #c5cae9;color:#1a237e;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:600;">📎 Joindre un fichier</button>
                 <span id="tk-eq-log-filename" style="font-size:11px;color:#666;">Aucun fichier joint</span>
+                <span id="tk-eq-log-actions" style="display:none;font-size:11px;">
+                  <span onclick="_tkOpenEquipLogFile()" title="Ouvrir / télécharger" style="color:#1a237e;cursor:pointer;text-decoration:underline;">Ouvrir</span>
+                  <span onclick="_tkRemoveEquipLogFile()" title="Retirer" style="color:#c62828;cursor:pointer;margin-left:6px;">✕</span>
+                </span>
               </div>
               <input type="file" id="tk-eq-log-file" style="display:none;" onchange="_tkHandleEquipFile(this,'log')" />
             </div>
@@ -7428,13 +7432,27 @@ function _tkDropEquipPhoto(event, which) {
   if (!files.length) { showToast('⚠️ Déposez une image pour cette zone.'); return; }
   _tkProcessEquipPhotoFiles(files, which);
 }
+function _tkRenderEquipLogFile() {
+  const hasFile = !!_tkEquipLogFile.name;
+  document.getElementById('tk-eq-log-filename').textContent = hasFile ? _tkEquipLogFile.name : 'Aucun fichier joint';
+  document.getElementById('tk-eq-log-actions').style.display = hasFile ? 'inline' : 'none';
+}
+function _tkOpenEquipLogFile() {
+  if (!_tkEquipLogFile.data) return;
+  dlFile(Uint8Array.from(atob(_tkEquipLogFile.data.split(',')[1]), c => c.charCodeAt(0)), _tkEquipLogFile.name, 'application/octet-stream');
+}
+function _tkRemoveEquipLogFile() {
+  _tkEquipLogFile = { name:'', data:'' };
+  document.getElementById('tk-eq-log-file').value = '';
+  _tkRenderEquipLogFile();
+}
 function _tkProcessEquipLogFile(file) {
   if (!file) return;
   if (file.size > 800*1024) { showToast('⚠️ Fichier trop lourd (max ~800 Ko).'); return; }
   const reader = new FileReader();
   reader.onload = e => {
     _tkEquipLogFile = { name: file.name, data: e.target.result };
-    document.getElementById('tk-eq-log-filename').textContent = file.name;
+    _tkRenderEquipLogFile();
   };
   reader.readAsDataURL(file);
 }
@@ -7453,7 +7471,7 @@ function _tkClearEquipFields() {
   _tkEquipLogFile = { name:'', data:'' };
   _tkRenderPhotoGallery('situation');
   _tkRenderPhotoGallery('solution');
-  document.getElementById('tk-eq-log-filename').textContent = 'Aucun fichier joint';
+  _tkRenderEquipLogFile();
   const fis = document.getElementById('tk-eq-photo-situation'); if (fis) fis.value='';
   const fso = document.getElementById('tk-eq-photo-solution'); if (fso) fso.value='';
   const flog = document.getElementById('tk-eq-log-file'); if (flog) flog.value='';
@@ -7465,7 +7483,7 @@ function _tkFillEquipFields(equip) {
   _tkEquipLogFile = { name: equip.logFileName||'', data: equip.logFileData||'' };
   _tkRenderPhotoGallery('situation');
   _tkRenderPhotoGallery('solution');
-  document.getElementById('tk-eq-log-filename').textContent = equip.logFileName || 'Aucun fichier joint';
+  _tkRenderEquipLogFile();
 }
 function _tkCollectEquipFields() {
   const equip = {};
