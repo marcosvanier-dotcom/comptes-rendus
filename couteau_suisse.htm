@@ -6270,13 +6270,29 @@ function buildExportList() {
 
   // Tickets row
   const tickets = JSON.parse(localStorage.getItem('cr-tickets-v1')||'[]');
+  const TK_TYPE = { incident:"Incident", nonconformite:"Non-conformité", demande:"Demande", situation:"Sit. dégradée" };
+  const TK_STAT_C = { ouvert:"#b71c1c", "en-cours":"#e65100", resolu:"#2e7d32", ferme:"#555" };
+  const TK_STAT_L = { ouvert:"Ouvert", "en-cours":"En cours", resolu:"Résolu", ferme:"Fermé" };
+  const tkRows = showItems ? tickets.map((tk, ti) => {
+    const titre = (tk.titre || tk['desc-situation'] || '(sans titre)').substring(0, 55);
+    const statut = tk.statut || 'ouvert';
+    const sc = TK_STAT_C[statut] || '#888';
+    const sl = TK_STAT_L[statut] || statut;
+    return `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px 4px 28px;border-bottom:1px solid #fff3cd;font-size:11px;background:#fff;">
+      <input type="checkbox" class="export-ticket-check" data-ti="${ti}" checked style="width:12px;height:12px;flex-shrink:0;" />
+      <span style="flex:1;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(titre)}</span>
+      <span style="font-size:10px;color:#888;">${TK_TYPE[tk.type]||tk.type||''}</span>
+      <span style="font-size:10px;color:${sc};white-space:nowrap;font-weight:600;">${sl}</span>
+    </label>`;
+  }).join('') : '';
   wrap.innerHTML += `<div style="border:1px solid #ffe082;border-radius:8px;overflow:hidden;margin-bottom:6px;">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#fff8e1;">
-      <input type="checkbox" id="export-tickets-check" checked style="width:14px;height:14px;" />
+      <input type="checkbox" id="export-tickets-check" checked style="width:14px;height:14px;" onchange="document.querySelectorAll('.export-ticket-check').forEach(c=>c.checked=this.checked)" />
       <span style="font-size:18px;">🎫</span>
       <span style="flex:1;font-size:12px;font-weight:600;color:#e65100;">Tickets</span>
       <span style="font-size:10px;color:#888;">${tickets.length} ticket${tickets.length!==1?'s':''}</span>
     </label>
+    ${tkRows}
   </div>`;
 }
 
@@ -6292,33 +6308,38 @@ function confirmExportSession() {
   const base    = { _type:"cr-session-v2", lang, metaDate:dateVal, metaRef:ref, metaTitle:title,
     metaWeek: document.getElementById("meta-week").textContent };
 
-  const _inclTickets = () => {
+  const _allTickets = JSON.parse(localStorage.getItem('cr-tickets-v1')||'[]');
+  const _tkData = () => {
     const chk = document.getElementById('export-tickets-check');
-    return !chk || chk.checked;
+    if (!chk || !chk.checked) return [];
+    const indiv = [...document.querySelectorAll('.export-ticket-check')];
+    if (!indiv.length) return _allTickets;
+    const sel = indiv.filter(c=>c.checked).map(c=>parseInt(c.dataset.ti));
+    return _allTickets.filter((_,i)=>sel.includes(i));
   };
-  const _tkData = JSON.parse(localStorage.getItem('cr-tickets-v1')||'[]');
+
+  const tk = _tkData();
 
   if (_exportMode === 'all') {
     const session = { ...base, sections: state.sections.map(s=>({id:s.id,label:s.label,emoji:s.emoji,cls:s.cls,items:s.items})) };
-    if (_inclTickets() && _tkData.length) session.tickets = _tkData;
+    if (tk.length) session.tickets = tk;
     dlFile(JSON.stringify(session,null,2), fileName+"_session.json", "application/json;charset=utf-8");
-    showToast(`✅ Session complète exportée (${state.sections.length} rubriques${_inclTickets()&&_tkData.length?' + '+_tkData.length+' ticket(s)':''})`);
+    showToast(`✅ Session complète exportée (${state.sections.length} rubriques${tk.length?' + '+tk.length+' ticket(s)':''})`);
 
   } else if (_exportMode === 'each') {
     const selected = [...document.querySelectorAll('.export-sec-check:checked')].map(c=>parseInt(c.value));
-    if (!selected.length && !(_inclTickets() && _tkData.length)) { showToast("Sélectionnez au moins une rubrique."); return; }
+    if (!selected.length && !tk.length) { showToast("Sélectionnez au moins une rubrique."); return; }
     state.sections.filter((_,si)=>selected.includes(si)).forEach(sec => {
       const session = { ...base, sections: [{ id:sec.id, label:sec.label, emoji:sec.emoji, cls:sec.cls, items:sec.items }] };
       const safeName = sec.label.replace(/[^a-zA-Z0-9_\-]/g,'_');
       dlFile(JSON.stringify(session,null,2), `${fileName}_${safeName}_session.json`, "application/json;charset=utf-8");
     });
-    if (_inclTickets() && _tkData.length) {
-      dlFile(JSON.stringify({...base, tickets: _tkData},null,2), `${fileName}_tickets.json`, "application/json;charset=utf-8");
+    if (tk.length) {
+      dlFile(JSON.stringify({...base, tickets: tk},null,2), `${fileName}_tickets.json`, "application/json;charset=utf-8");
     }
-    showToast(`✅ ${selected.length + (_inclTickets()&&_tkData.length?1:0)} fichier(s) exporté(s)`);
+    showToast(`✅ ${selected.length + (tk.length?1:0)} fichier(s) exporté(s)`);
 
   } else {
-    // Pick mode — item level selection
     const selectedBySection = {};
     document.querySelectorAll('.export-item-check:checked').forEach(cb => {
       const si = parseInt(cb.dataset.si);
@@ -6326,21 +6347,18 @@ function confirmExportSession() {
       if (!selectedBySection[si]) selectedBySection[si] = [];
       selectedBySection[si].push(ii);
     });
-
-    if (!Object.keys(selectedBySection).length) { showToast("Sélectionnez au moins un élément."); return; }
-
+    if (!Object.keys(selectedBySection).length && !tk.length) { showToast("Sélectionnez au moins un élément."); return; }
     const sections = state.sections
       .map((sec, si) => {
         if (!selectedBySection[si]) return null;
         return { id:sec.id, label:sec.label, emoji:sec.emoji, cls:sec.cls,
           items: sec.items.filter((_,ii) => selectedBySection[si].includes(ii)) };
       }).filter(Boolean);
-
     const total = sections.reduce((a,s)=>a+s.items.length, 0);
     const session = { ...base, sections };
-    if (_inclTickets() && _tkData.length) session.tickets = _tkData;
+    if (tk.length) session.tickets = tk;
     dlFile(JSON.stringify(session,null,2), fileName+"_session.json", "application/json;charset=utf-8");
-    showToast(`✅ ${total} élément(s) de ${sections.length} rubrique(s)${_inclTickets()&&_tkData.length?' + '+_tkData.length+' ticket(s)':''}`);
+    showToast(`✅ ${total} élément(s) de ${sections.length} rubrique(s)${tk.length?' + '+tk.length+' ticket(s)':''}`);
   }
 
   document.getElementById("export-session-modal").style.display = "none";
