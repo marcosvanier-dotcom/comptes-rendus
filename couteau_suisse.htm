@@ -6632,14 +6632,19 @@ initApp();
 
         <!-- Résumé IA (séparé de l'extraction d'actions) -->
         <div id="ai-summary-panel" style="display:none;margin-top:14px;background:#f5f7ff;border:1px solid #e8eaf6;border-radius:10px;padding:14px 16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div style="font-size:12px;font-weight:700;color:#1a237e;">📝 Résumé de l'email</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="font-size:12px;font-weight:700;color:#1a237e;">📝 Résumé de l'email</div>
+              <button id="ai-sum-btn-fr" onclick="_aiSummaryLang('fr')" style="font-size:11px;background:#1a237e;color:#fff;border:1px solid #1a237e;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;">🇫🇷 FR</button>
+              <button id="ai-sum-btn-pt" onclick="_aiSummaryLang('pt')" style="font-size:11px;background:#f0f0f0;color:#333;border:1px solid #ccc;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;">🇧🇷 PT</button>
+            </div>
             <div style="display:flex;gap:6px;">
               <button onclick="_aiCopySummary()" style="font-size:11px;background:#e8eaf6;border:1px solid #c5cae9;color:#1a237e;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:600;">📋 Copier</button>
               <button onclick="document.getElementById('ai-summary-panel').style.display='none'" style="font-size:11px;background:#f5f5f5;border:1px solid #ddd;color:#666;border-radius:6px;padding:4px 10px;cursor:pointer;">✕</button>
             </div>
           </div>
-          <div id="ai-summary-text" style="font-size:12px;color:#333;line-height:1.6;white-space:pre-wrap;"></div>
+          <div id="ai-summary-text-fr" style="font-size:12px;color:#333;line-height:1.6;white-space:pre-wrap;"></div>
+          <div id="ai-summary-text-pt" style="display:none;font-size:12px;color:#333;line-height:1.6;white-space:pre-wrap;"></div>
         </div>
       </div>
 
@@ -6913,8 +6918,17 @@ async function _aiRunSummary() {
   try {
     if (!apiKey) throw new Error('Configurez votre clé API dans ⚙️ Configurer avant d\'analyser.');
     const prompt = _aiBuildSummaryPromptLocal(emailText);
-    const summary = (await _aiCallProviderRaw(provider, apiKey, prompt, { json: false })).trim();
-    document.getElementById('ai-summary-text').textContent = summary;
+    const raw = (await _aiCallProviderRaw(provider, apiKey, prompt, { json: false })).trim();
+    let fr = raw, pt = '';
+    try {
+      const parsed = JSON.parse(raw.replace(/^```json\s*/,'').replace(/```$/,'').trim());
+      fr = parsed.fr || raw;
+      pt = parsed.pt || '';
+    } catch(e) { /* fallback: show raw as FR */ }
+    document.getElementById('ai-summary-text-fr').textContent = fr;
+    document.getElementById('ai-summary-text-pt').textContent = pt;
+    _aiSummaryLang('fr');
+    document.getElementById('ai-sum-btn-pt').style.display = pt ? '' : 'none';
     document.getElementById('ai-summary-panel').style.display = 'block';
   } catch(e) {
     _showAIError('Erreur de résumé IA : ' + e.message);
@@ -6924,8 +6938,21 @@ async function _aiRunSummary() {
     _aiSetBusy(false);
   }
 }
+function _aiSummaryLang(l) {
+  document.getElementById('ai-summary-text-fr').style.display = l === 'fr' ? 'block' : 'none';
+  document.getElementById('ai-summary-text-pt').style.display = l === 'pt' ? 'block' : 'none';
+  document.getElementById('ai-sum-btn-fr').style.background = l === 'fr' ? '#1a237e' : '#f0f0f0';
+  document.getElementById('ai-sum-btn-fr').style.color      = l === 'fr' ? '#fff'    : '#333';
+  document.getElementById('ai-sum-btn-fr').style.borderColor= l === 'fr' ? '#1a237e' : '#ccc';
+  document.getElementById('ai-sum-btn-pt').style.background = l === 'pt' ? '#1a237e' : '#f0f0f0';
+  document.getElementById('ai-sum-btn-pt').style.color      = l === 'pt' ? '#fff'    : '#333';
+  document.getElementById('ai-sum-btn-pt').style.borderColor= l === 'pt' ? '#1a237e' : '#ccc';
+}
 function _aiCopySummary() {
-  const text = document.getElementById('ai-summary-text').textContent || '';
+  const activePt = document.getElementById('ai-summary-text-pt').style.display !== 'none';
+  const text = activePt
+    ? (document.getElementById('ai-summary-text-pt').textContent || '')
+    : (document.getElementById('ai-summary-text-fr').textContent || '');
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => showToast('✅ Résumé copié dans le presse-papiers !'));
 }
@@ -7011,8 +7038,9 @@ async function _aiCallProviderDirect(provider, apiKey, prompt) {
 }
 function _aiBuildSummaryPromptLocal(emailText) {
   return `Tu es un assistant qui résume des e-mails professionnels liés à une cellule de soudage industriel nucléaire (EDF).
-Lis l'e-mail suivant et rédige un résumé clair et concis en français (5 à 10 lignes), reprenant les points clés, décisions, échéances et personnes mentionnées.
-Réponds UNIQUEMENT avec le texte du résumé, sans JSON, sans formatage Markdown.
+Lis l'e-mail suivant et rédige un résumé clair et concis, reprenant les points clés, décisions, échéances et personnes mentionnées.
+Réponds UNIQUEMENT avec du JSON valide dans ce format exact, sans Markdown :
+{ "fr": "résumé en français (5 à 10 lignes)", "pt": "resumo em português (5 a 10 linhas)" }
 
 E-MAIL :
 ---
